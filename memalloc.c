@@ -4,7 +4,7 @@
 /* Only for the debug printf */
 #include <stdio.h>
 
-typedef double ALIGN;
+typedef char ALIGN[16];
 
 union header {
 	struct {
@@ -12,7 +12,7 @@ union header {
 		unsigned is_free;
 		union header *next;
 	} s;
-	/* force the header to be aligned to the size of double on the platform */
+	/* force the header to be aligned to 16 bytes */
 	ALIGN stub;
 };
 typedef union header header_t;
