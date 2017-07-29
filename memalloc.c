@@ -3,7 +3,8 @@
 #include <pthread.h>
 /* Only for the debug printf */
 #include <stdio.h>
-
+//ggget
+//g
 struct header_t {
 	size_t size;
 	unsigned is_free;
@@ -15,6 +16,7 @@ pthread_mutex_t global_malloc_lock;
 
 struct header_t *get_free_block(size_t size)
 {
+	
 	struct header_t *curr = head;
 	while(curr) {
 		/* see if there's a free block that can accomodate requested size */
@@ -22,19 +24,23 @@ struct header_t *get_free_block(size_t size)
 			return curr;
 		curr = curr->next;
 	}
+	printf("get free block\n");
 	return NULL;
 }
 
 void free(void *block)
 {
+	//printf ("entered free \n");
 	struct header_t *header, *tmp;
 	/* program break is the end of the process's data segment */
 	void *programbreak;
 
 	if (!block)
 		return;
+	printf("lock \n");
 	pthread_mutex_lock(&global_malloc_lock);
 	header = (struct header_t*)block - 1;
+	//printf("obtained lock\n");
 	/* sbrk(0) gives the current program break address */
 	programbreak = sbrk(0);
 
@@ -50,6 +56,7 @@ void free(void *block)
 		} else {
 			tmp = head;
 			while (tmp) {
+				printf("tmp looping\n");
 				if(tmp->next == tail) {
 					tmp->next = NULL;
 					tail = tmp;
@@ -72,23 +79,48 @@ void free(void *block)
 		pthread_mutex_unlock(&global_malloc_lock);
 		return;
 	}
+		//printf("before loop\n");
+
+	struct header_t *cur=header;
+	
+	while (cur->next && (cur->next->is_free) && (char *)(cur->next)==(char *)(cur)+sizeof(struct header_t)+cur->size){
+		header->size=(header->size)+(cur->next->size);
+		cur=cur->next;
+		printf("looping\n");	
+	}
 	header->is_free = 1;
+	header->next=cur;
+	/*Added Coalescing 
+	
+	if there are adjacent free blocks,they will be united(coalesced) in one free block and its size will be the total size of the adjacent free blocks.
+	*/
 	pthread_mutex_unlock(&global_malloc_lock);
+	printf("unlock \n");
+	//printf("after lock release\n");
+	return ;
+
 }
 
 void *malloc(size_t size)
 {
+	printf("entered malloc\n");
 	size_t total_size;
 	void *block;
 	struct header_t *header;
-	if (!size)
-		return NULL;
+	printf("before  lock malloc 1\n");
+	if (size==0){
+		printf("failed malloc \n");
+		return NULL;}
+	printf("before  lock malloc \n");
 	pthread_mutex_lock(&global_malloc_lock);
 	header = get_free_block(size);
 	if (header) {
 		/* Woah, found a free block to accomodate requested memory. */
+		printf("is_free malloc \n");
 		header->is_free = 0;
 		pthread_mutex_unlock(&global_malloc_lock);
+		printf("unlock \n");
+		printf("succesful malloc \n");
 		return (void*)(header + 1);
 	}
 	/* We need to get memory to fit in the requested block and header from OS. */
@@ -96,6 +128,8 @@ void *malloc(size_t size)
 	block = sbrk(total_size);
 	if (block == (void*) -1) {
 		pthread_mutex_unlock(&global_malloc_lock);
+		printf("unlock \n");
+		printf("failed malloc \n");
 		return NULL;
 	}
 	header = block;
@@ -108,11 +142,14 @@ void *malloc(size_t size)
 		tail->next = header;
 	tail = header;
 	pthread_mutex_unlock(&global_malloc_lock);
+	printf("unlock \n");
+	printf("succesful malloc \n");
 	return (void*)(header + 1);
 }
 
 void *calloc(size_t num, size_t nsize)
-{
+{	
+	printf("calloc\n");
 	size_t size;
 	void *block;
 	if (!num || !nsize)
@@ -158,3 +195,4 @@ void print_mem_list()
 		curr = curr->next;
 	}
 }
+
