@@ -44,24 +44,13 @@ void free(void *block)
 	   heap and release memory to OS. Else, we will keep the block
 	   but mark it as free.
 	 */
+	header->is_free = 1;
 	if ((char*)block + header->size == programbreak) {
-		if (head == tail) {
-			head = tail = NULL;
-		} else {
-			tmp = head;
-			while (tmp) {
-				if(tmp->next == tail) {
-					tmp->next = NULL;
-					tail = tmp;
-				}
-				tmp = tmp->next;
-			}
-		}
 		/*
 		   sbrk() with a negative argument decrements the program break.
 		   So memory is released by the program to OS.
 		*/
-		sbrk(0 - header->size - sizeof(struct header_t));
+		sbrk(release_size());
 		/* Note: This lock does not really assure thread
 		   safety, because sbrk() itself is not really
 		   thread safe. Suppose there occurs a foregin sbrk(N)
@@ -72,8 +61,36 @@ void free(void *block)
 		pthread_mutex_unlock(&global_malloc_lock);
 		return;
 	}
-	header->is_free = 1;
 	pthread_mutex_unlock(&global_malloc_lock);
+}
+
+size_t release_size()
+{
+	/* This calculates the size of all trailing elements */
+	struct header_t *new_tail, *tmp;
+	size_t release_size = 0;
+	new_tail = tmp = head;
+	while (tmp) {
+		if(tmp->next == NULL) {
+			new_tail->next = NULL;
+			tail = new_tail;
+		}
+		if(!tmp->is_free) {
+			new_tail = tmp;
+			release_size = 0;
+		} else {
+			release_size -= tmp->size - sizeof(struct header_t);
+		}
+		tmp = tmp->next;
+	}
+	/* Head equals tail can indicate two things:
+	     * this is the last remaining element on the heap
+	     * there are no remaining elements on the heap
+	*/
+	if (head == tail && head->is_free) {
+		head = tail = NULL;
+	}	
+	return release_size;
 }
 
 void *malloc(size_t size)
