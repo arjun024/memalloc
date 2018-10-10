@@ -133,7 +133,7 @@ void *realloc(void *block, size_t size)
 	struct header_t *header;
 	void *ret;
 	if (!block || !size)
-		return malloc(size);
+		return NULL;
 	header = (struct header_t*)block - 1;
 	if (header->size >= size)
 		return block;
